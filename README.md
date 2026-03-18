@@ -2,8 +2,6 @@
 
 PACCT is an industry-agnostic framework for collaborative analytics in environments where organizations have strong incentive to collaborate analytically, but raw data cannot be freely shared because of privacy, legal, fiduciary, ethical, or operational constraints.
 
-> *Useful collaboration should not require surrendering raw data.*
-
 Read the full [Manifesto: Knowledge Without Exposure](MANIFESTO.md) to understand why PACCT exists and the principles that guide its design.
 
 ---
