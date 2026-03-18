@@ -3,4 +3,3 @@ packages:
   - "pacct-specs"
   - "pacct-client"
   - "pacct-discovery-server"
-  - "pacct-design"

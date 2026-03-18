@@ -1,7 +1,0 @@
-{
-  "name": "@pacct/design",
-  "version": "1.0.0",
-  "private": true,
-  "description": "PACCT design system — visual assets, style references, and design tokens. Not part of the v1 functional build.",
-  "scripts": {}
-}

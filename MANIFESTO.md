@@ -1,4 +1,4 @@
-Manifesto: Knowledge Without Exposure
+**Manifesto: Knowledge Without Exposure**
 
 Across education, medicine, finance, defense, and many other domains, institutions face the same paradox.
 

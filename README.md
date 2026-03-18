@@ -1,6 +1,4 @@
-PACCT
-
-Privacy Preserving Analytics via Collaborative Computation and Thresholding
+**Privacy Preserving Analytics via Collaborative Computation and Thresholding**
 
 PACCT is an industry-agnostic framework for collaborative analytics in environments where organizations have strong incentive to collaborate analytically, but raw data cannot be freely shared because of privacy, legal, fiduciary, ethical, or operational constraints.
 
@@ -66,7 +64,6 @@ pacct/
 ├── pacct-specs/             Spec definitions, validators, templates, import/export
 ├── pacct-client/            Next.js client application
 ├── pacct-discovery-server/  Next.js discovery/coordination service
-├── pacct-design/            Design system reference (not part of v1 build)
 └── v1_specs/                Original specification documents
 ```
 
