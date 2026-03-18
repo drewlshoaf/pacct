@@ -1,0 +1,6 @@
+packages:
+  - "pacct-protocol-ts"
+  - "pacct-specs"
+  - "pacct-client"
+  - "pacct-discovery-server"
+  - "pacct-design"

@@ -1,0 +1,26 @@
+{
+  "name": "@pacct/specs",
+  "version": "1.0.0",
+  "description": "PACCT spec definitions, validation, and utilities",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pacct/protocol-ts": "workspace:*",
+    "zod": "^3.23.0",
+    "yaml": "^2.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0",
+    "tsup": "^8.0.0"
+  }
+}

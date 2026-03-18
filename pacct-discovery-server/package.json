@@ -1,0 +1,35 @@
+{
+  "name": "@pacct/discovery-server",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "next": "^15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "better-sqlite3": "^11.7.0",
+    "ws": "^8.18.0",
+    "zod": "^3.23.0",
+    "tailwindcss": "^3.4.0",
+    "postcss": "^8.4.0",
+    "autoprefixer": "^10.4.0",
+    "@pacct/protocol-ts": "workspace:*",
+    "@pacct/specs": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0",
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/ws": "^8.5.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/node": "^20.0.0",
+    "@tailwindcss/forms": "^0.5.0"
+  }
+}
