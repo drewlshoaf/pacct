@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') ?? undefined;
-    const networks = getNetworkRepo().listNetworks(status);
+    const networks = await getNetworkRepo().listNetworks(status);
     return NextResponse.json({ networks });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to list networks' }, { status: 500 });
@@ -28,13 +28,13 @@ export async function POST(request: NextRequest) {
     const eventRepo = getEventRepo();
 
     // Check if network already exists
-    const existing = networkRepo.getNetwork(data.id);
+    const existing = await networkRepo.getNetwork(data.id);
     if (existing) {
       return NextResponse.json({ error: 'Network already exists' }, { status: 409 });
     }
 
     // Create network
-    const network = networkRepo.createNetwork({
+    const network = await networkRepo.createNetwork({
       id: data.id,
       alias: data.alias,
       creatorNodeId: data.creatorNodeId,
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     // Store manifests if provided
     if (data.manifests?.specManifests) {
-      manifestRepo.storeSpecManifests(
+      await manifestRepo.storeSpecManifests(
         data.manifests.specManifests.map((m) => ({
           networkId: data.id,
           specType: m.specType,
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (data.manifests?.networkManifest) {
-      manifestRepo.storeNetworkManifest({
+      await manifestRepo.storeNetworkManifest({
         networkId: data.id,
         schemaHash: data.manifests.networkManifest.schemaHash,
         computationHash: data.manifests.networkManifest.computationHash,
@@ -71,10 +71,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Creator becomes first member
-    memberRepo.addMember({ networkId: data.id, nodeId: data.creatorNodeId });
+    await memberRepo.addMember({ networkId: data.id, nodeId: data.creatorNodeId });
 
     // Log event
-    eventRepo.logEvent({
+    await eventRepo.logEvent({
       networkId: data.id,
       eventType: 'network_created',
       nodeId: data.creatorNodeId,

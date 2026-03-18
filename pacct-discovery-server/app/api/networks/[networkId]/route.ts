@@ -7,15 +7,15 @@ export async function GET(
 ) {
   try {
     const { networkId } = await params;
-    const network = getNetworkRepo().getNetwork(networkId);
+    const network = await getNetworkRepo().getNetwork(networkId);
     if (!network) {
       return NextResponse.json({ error: 'Network not found' }, { status: 404 });
     }
 
-    const members = getMemberRepo().getMembers(networkId);
-    const manifests = getManifestRepo().getSpecManifests(networkId);
-    const networkManifest = getManifestRepo().getNetworkManifest(networkId);
-    const presence = getPresenceRepo().getNetworkPresence(networkId);
+    const members = await getMemberRepo().getMembers(networkId);
+    const manifests = await getManifestRepo().getSpecManifests(networkId);
+    const networkManifest = await getManifestRepo().getNetworkManifest(networkId);
+    const presence = await getPresenceRepo().getNetworkPresence(networkId);
 
     return NextResponse.json({
       network,

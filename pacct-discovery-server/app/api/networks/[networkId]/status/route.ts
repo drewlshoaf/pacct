@@ -15,14 +15,14 @@ export async function PATCH(
     }
 
     const networkRepo = getNetworkRepo();
-    const existing = networkRepo.getNetwork(networkId);
+    const existing = await networkRepo.getNetwork(networkId);
     if (!existing) {
       return NextResponse.json({ error: 'Network not found' }, { status: 404 });
     }
 
-    const network = networkRepo.updateNetworkStatus(networkId, parsed.data.status);
+    const network = await networkRepo.updateNetworkStatus(networkId, parsed.data.status);
 
-    getEventRepo().logEvent({
+    await getEventRepo().logEvent({
       networkId,
       eventType: 'network_status_changed',
       payload: { from: existing.status, to: parsed.data.status },

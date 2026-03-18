@@ -1,4 +1,4 @@
-import { DiscoveryDatabase } from './database';
+import { getPool } from './pool';
 import { NetworkRepository } from './repositories/network-repository';
 import { MemberRepository } from './repositories/member-repository';
 import { ApplicantRepository } from './repositories/applicant-repository';
@@ -7,44 +7,30 @@ import { ManifestRepository } from './repositories/manifest-repository';
 import { PresenceRepository } from './repositories/presence-repository';
 import { EventRepository } from './repositories/event-repository';
 
-let _db: DiscoveryDatabase | null = null;
-
-function getDatabase(): DiscoveryDatabase {
-  if (!_db) {
-    const dbPath = process.env.DISCOVERY_DB_PATH ?? 'discovery.db';
-    _db = new DiscoveryDatabase(dbPath);
-  }
-  return _db;
-}
-
-export function getDb(): DiscoveryDatabase {
-  return getDatabase();
-}
-
 export function getNetworkRepo(): NetworkRepository {
-  return new NetworkRepository(getDatabase());
+  return new NetworkRepository(getPool());
 }
 
 export function getMemberRepo(): MemberRepository {
-  return new MemberRepository(getDatabase());
+  return new MemberRepository(getPool());
 }
 
 export function getApplicantRepo(): ApplicantRepository {
-  return new ApplicantRepository(getDatabase());
+  return new ApplicantRepository(getPool());
 }
 
 export function getVoteRepo(): VoteRepository {
-  return new VoteRepository(getDatabase());
+  return new VoteRepository(getPool());
 }
 
 export function getManifestRepo(): ManifestRepository {
-  return new ManifestRepository(getDatabase());
+  return new ManifestRepository(getPool());
 }
 
 export function getPresenceRepo(): PresenceRepository {
-  return new PresenceRepository(getDatabase());
+  return new PresenceRepository(getPool());
 }
 
 export function getEventRepo(): EventRepository {
-  return new EventRepository(getDatabase());
+  return new EventRepository(getPool());
 }

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <rect width="32" height="32" rx="6" fill="#0B0E13"/>
+  <!-- Pressure arc -->
+  <path d="M6 22 Q16 4 26 22" fill="none" stroke="#E535AB" stroke-width="1.5" opacity="0.5"/>
+  <!-- Waveform trace -->
+  <path d="M4 18 L8 18 L10 10 L13 24 L16 8 L19 22 L22 12 L24 18 L28 18" fill="none" stroke="#0AEFCF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Signal glow -->
+  <path d="M4 18 L8 18 L10 10 L13 24 L16 8 L19 22 L22 12 L24 18 L28 18" fill="none" stroke="#0AEFCF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.2"/>
+</svg>

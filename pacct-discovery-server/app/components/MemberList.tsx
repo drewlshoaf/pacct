@@ -9,8 +9,8 @@ interface Member {
 
 interface PresenceInfo {
   node_id: string;
-  online: number;
-  last_seen: number;
+  last_heartbeat_at: number;
+  lease_expires_at: number;
 }
 
 interface MemberListProps {
@@ -49,7 +49,7 @@ export function MemberList({ members, presence = [] }: MemberListProps) {
                       <code className="text-xs font-mono" style={{ color: 'var(--pacct-text-secondary)' }}>{m.node_id}</code>
                     </td>
                     <td><StatusBadge status={m.status} /></td>
-                    <td><PresenceIndicator online={!!p?.online} /></td>
+                    <td><PresenceIndicator online={!!p && p.lease_expires_at >= Date.now()} /></td>
                     <td className="text-sm" style={{ color: 'var(--pacct-text-muted)' }}>{new Date(m.joined_at).toLocaleString()}</td>
                   </tr>
                 );

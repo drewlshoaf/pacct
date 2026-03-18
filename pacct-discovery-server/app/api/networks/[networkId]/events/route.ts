@@ -8,7 +8,7 @@ export async function GET(
 ) {
   try {
     const { networkId } = await params;
-    const network = getNetworkRepo().getNetwork(networkId);
+    const network = await getNetworkRepo().getNetwork(networkId);
     if (!network) {
       return NextResponse.json({ error: 'Network not found' }, { status: 404 });
     }
@@ -19,8 +19,8 @@ export async function GET(
       offset: searchParams.get('offset') ?? undefined,
     });
 
-    const events = getEventRepo().getEvents(networkId, pagination.limit ?? 50, pagination.offset ?? 0);
-    const total = getEventRepo().countEvents(networkId);
+    const events = await getEventRepo().getEvents(networkId, pagination.limit ?? 50, pagination.offset ?? 0);
+    const total = await getEventRepo().countEvents(networkId);
 
     return NextResponse.json({
       events,

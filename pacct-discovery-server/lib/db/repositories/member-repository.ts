@@ -1,4 +1,4 @@
-import type { DiscoveryDatabase } from '../database';
+import { Pool } from 'pg';
 
 export interface MemberRow {
   network_id: string;
@@ -15,52 +15,78 @@ export interface AddMemberParams {
   status?: string;
 }
 
+function toMemberRow(row: any): MemberRow {
+  return {
+    ...row,
+    joined_at: Number(row.joined_at),
+    left_at: row.left_at != null ? Number(row.left_at) : null,
+    acknowledged_at: row.acknowledged_at != null ? Number(row.acknowledged_at) : null,
+  };
+}
+
 export class MemberRepository {
-  constructor(private database: DiscoveryDatabase) {}
+  constructor(private pool: Pool) {}
 
-  addMember(params: AddMemberParams): MemberRow {
+  async addMember(params: AddMemberParams): Promise<MemberRow> {
     const now = Date.now();
-    const stmt = this.database.db.prepare(`
-      INSERT INTO members (network_id, node_id, status, joined_at)
-      VALUES (?, ?, ?, ?)
-    `);
-    stmt.run(params.networkId, params.nodeId, params.status ?? 'active', now);
-    return this.getMember(params.networkId, params.nodeId)!;
+    await this.pool.query(
+      `INSERT INTO members (network_id, node_id, status, joined_at)
+       VALUES ($1, $2, $3, $4)`,
+      [params.networkId, params.nodeId, params.status ?? 'active', now],
+    );
+    return (await this.getMember(params.networkId, params.nodeId))!;
   }
 
-  getMember(networkId: string, nodeId: string): MemberRow | undefined {
-    const stmt = this.database.db.prepare('SELECT * FROM members WHERE network_id = ? AND node_id = ?');
-    return stmt.get(networkId, nodeId) as MemberRow | undefined;
+  async getMember(networkId: string, nodeId: string): Promise<MemberRow | undefined> {
+    const result = await this.pool.query(
+      'SELECT * FROM members WHERE network_id = $1 AND node_id = $2',
+      [networkId, nodeId],
+    );
+    return result.rows[0] ? toMemberRow(result.rows[0]) : undefined;
   }
 
-  getMembers(networkId: string): MemberRow[] {
-    const stmt = this.database.db.prepare('SELECT * FROM members WHERE network_id = ? ORDER BY joined_at ASC');
-    return stmt.all(networkId) as MemberRow[];
+  async getMembers(networkId: string): Promise<MemberRow[]> {
+    const result = await this.pool.query(
+      'SELECT * FROM members WHERE network_id = $1 ORDER BY joined_at ASC',
+      [networkId],
+    );
+    return result.rows.map(toMemberRow);
   }
 
-  updateMemberStatus(networkId: string, nodeId: string, status: string): MemberRow | undefined {
+  async updateMemberStatus(networkId: string, nodeId: string, status: string): Promise<MemberRow | undefined> {
     const now = Date.now();
     if (status === 'left' || status === 'expelled') {
-      const stmt = this.database.db.prepare('UPDATE members SET status = ?, left_at = ? WHERE network_id = ? AND node_id = ?');
-      stmt.run(status, now, networkId, nodeId);
+      await this.pool.query(
+        'UPDATE members SET status = $1, left_at = $2 WHERE network_id = $3 AND node_id = $4',
+        [status, now, networkId, nodeId],
+      );
     } else if (status === 'active') {
-      const stmt = this.database.db.prepare('UPDATE members SET status = ?, acknowledged_at = ? WHERE network_id = ? AND node_id = ?');
-      stmt.run(status, now, networkId, nodeId);
+      await this.pool.query(
+        'UPDATE members SET status = $1, acknowledged_at = $2 WHERE network_id = $3 AND node_id = $4',
+        [status, now, networkId, nodeId],
+      );
     } else {
-      const stmt = this.database.db.prepare('UPDATE members SET status = ? WHERE network_id = ? AND node_id = ?');
-      stmt.run(status, networkId, nodeId);
+      await this.pool.query(
+        'UPDATE members SET status = $1 WHERE network_id = $2 AND node_id = $3',
+        [status, networkId, nodeId],
+      );
     }
     return this.getMember(networkId, nodeId);
   }
 
-  removeMember(networkId: string, nodeId: string): boolean {
-    const stmt = this.database.db.prepare('DELETE FROM members WHERE network_id = ? AND node_id = ?');
-    const result = stmt.run(networkId, nodeId);
-    return result.changes > 0;
+  async removeMember(networkId: string, nodeId: string): Promise<boolean> {
+    const result = await this.pool.query(
+      'DELETE FROM members WHERE network_id = $1 AND node_id = $2',
+      [networkId, nodeId],
+    );
+    return (result.rowCount ?? 0) > 0;
   }
 
-  getActiveMembers(networkId: string): MemberRow[] {
-    const stmt = this.database.db.prepare("SELECT * FROM members WHERE network_id = ? AND status = 'active' ORDER BY joined_at ASC");
-    return stmt.all(networkId) as MemberRow[];
+  async getActiveMembers(networkId: string): Promise<MemberRow[]> {
+    const result = await this.pool.query(
+      "SELECT * FROM members WHERE network_id = $1 AND status = 'active' ORDER BY joined_at ASC",
+      [networkId],
+    );
+    return result.rows.map(toMemberRow);
   }
 }

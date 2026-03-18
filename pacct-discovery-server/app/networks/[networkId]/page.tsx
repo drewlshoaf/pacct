@@ -1,26 +1,38 @@
 import { notFound } from 'next/navigation';
 import { getNetworkRepo, getMemberRepo, getApplicantRepo, getManifestRepo, getPresenceRepo, getEventRepo } from '@/lib/db/instance';
 import { StatusBadge } from '@/app/components/StatusBadge';
-import { MemberList } from '@/app/components/MemberList';
+import { AvailabilityBadge } from '@/app/components/AvailabilityBadge';
 import { ApplicantList } from '@/app/components/ApplicantList';
 import { EventLog } from '@/app/components/EventLog';
+import { PresenceDetail } from './PresenceDetail';
 
 export const dynamic = 'force-dynamic';
 
 export default async function NetworkDetailPage({ params }: { params: Promise<{ networkId: string }> }) {
   const { networkId } = await params;
-  const network = getNetworkRepo().getNetwork(networkId);
+  const network = await getNetworkRepo().getNetwork(networkId);
 
   if (!network) {
     notFound();
   }
 
-  const members = getMemberRepo().getMembers(networkId);
-  const applicants = getApplicantRepo().getApplicants(networkId);
-  const specManifests = getManifestRepo().getSpecManifests(networkId);
-  const networkManifest = getManifestRepo().getNetworkManifest(networkId);
-  const presence = getPresenceRepo().getNetworkPresence(networkId);
-  const events = getEventRepo().getEvents(networkId, 20);
+  const members = await getMemberRepo().getMembers(networkId);
+  const applicants = await getApplicantRepo().getApplicants(networkId);
+  const specManifests = await getManifestRepo().getSpecManifests(networkId);
+  const networkManifest = await getManifestRepo().getNetworkManifest(networkId);
+  const presence = await getPresenceRepo().getNetworkPresence(networkId);
+  const events = await getEventRepo().getEvents(networkId, 20);
+
+  const presenceMap = new Map(presence.map((p) => [p.node_id, p]));
+  const now = Date.now();
+
+  function getAvailability(nodeId: string): 'online' | 'stale' | 'offline' | 'unknown' {
+    const p = presenceMap.get(nodeId);
+    if (!p) return 'unknown';
+    if (p.lease_expires_at < now) return 'offline';
+    if (p.lease_expires_at - now < 10_000) return 'stale';
+    return 'online';
+  }
 
   return (
     <div>
@@ -62,15 +74,62 @@ export default async function NetworkDetailPage({ params }: { params: Promise<{ 
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Members */}
+        {/* Members with presence */}
         <div className="card">
-          <MemberList members={members} presence={presence} />
+          <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--pacct-text)' }}>
+            Members
+            <span className="ml-2 text-sm font-normal" style={{ color: 'var(--pacct-text-muted)' }}>({members.length})</span>
+          </h3>
+          {members.length === 0 ? (
+            <p className="text-sm italic" style={{ color: 'var(--pacct-text-muted)' }}>No members</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="table-ds">
+                <thead>
+                  <tr>
+                    <th>Node ID</th>
+                    <th>Status</th>
+                    <th>Availability</th>
+                    <th>Joined</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {members.map((m, i) => {
+                    const p = presenceMap.get(m.node_id);
+                    const availability = getAvailability(m.node_id);
+                    return (
+                      <tr key={m.node_id} className={i % 2 === 1 ? 'bg-[var(--pacct-bg-raised)]/30' : ''}>
+                        <td>
+                          <code className="text-xs font-mono" style={{ color: 'var(--pacct-text-secondary)' }}>{m.node_id}</code>
+                        </td>
+                        <td><StatusBadge status={m.status} /></td>
+                        <td><AvailabilityBadge availability={availability} /></td>
+                        <td className="text-sm" style={{ color: 'var(--pacct-text-muted)' }}>{new Date(m.joined_at).toLocaleString()}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Applicants */}
         <div className="card">
           <ApplicantList applicants={applicants} />
         </div>
+      </div>
+
+      {/* Presence detail (client component for live updates) */}
+      <div className="card mt-6">
+        <PresenceDetail
+          presence={presence.map((p) => ({
+            node_id: p.node_id,
+            last_heartbeat_at: p.last_heartbeat_at,
+            lease_expires_at: p.lease_expires_at,
+            instance_id: p.instance_id,
+          }))}
+        />
       </div>
 
       {/* Manifests */}

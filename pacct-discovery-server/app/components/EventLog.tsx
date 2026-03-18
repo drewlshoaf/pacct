@@ -2,7 +2,7 @@ interface Event {
   id: number;
   event_type: string;
   node_id: string | null;
-  payload: string | null;
+  payload: Record<string, unknown> | string | null;
   timestamp: number;
 }
 
@@ -56,7 +56,7 @@ export function EventLog({ events }: { events: Event[] }) {
                     )}
                     {e.payload && (
                       <span className="text-xs truncate" style={{ color: 'var(--pacct-text-muted)' }}>
-                        {e.payload}
+                        {typeof e.payload === 'string' ? e.payload : JSON.stringify(e.payload)}
                       </span>
                     )}
                   </div>

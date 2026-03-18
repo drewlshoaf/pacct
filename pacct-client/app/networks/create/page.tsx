@@ -120,12 +120,16 @@ export default function CreateNetworkPage() {
       governance?: Parameters<typeof updateGovernance>[0];
       economic?: Parameters<typeof updateEconomic>[0];
     }) => {
-      if (partial.schema) updateSchema(partial.schema);
-      if (partial.computation) updateComputation(partial.computation);
-      if (partial.governance) updateGovernance(partial.governance);
-      if (partial.economic) updateEconomic(partial.economic);
+      // Use loadTemplate to apply all sections atomically in a single dispatch
+      // This avoids any batching issues with separate updateSchema/updateComputation calls
+      const templateState: Record<string, unknown> = {};
+      if (partial.schema) templateState.schema = { ...state.schema, ...partial.schema };
+      if (partial.computation) templateState.computation = { ...state.computation, ...partial.computation };
+      if (partial.governance) templateState.governance = { ...state.governance, ...partial.governance };
+      if (partial.economic) templateState.economic = { ...state.economic, ...partial.economic };
+      loadTemplate(templateState);
     },
-    [updateSchema, updateComputation, updateGovernance, updateEconomic],
+    [state, loadTemplate],
   );
 
   const handleCreate = useCallback(async () => {

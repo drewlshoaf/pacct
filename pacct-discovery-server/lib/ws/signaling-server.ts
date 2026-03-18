@@ -1,9 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'http';
-import { DiscoveryDatabase } from '../db/database';
-import { PresenceRepository } from '../db/repositories/presence-repository';
-import { EventRepository } from '../db/repositories/event-repository';
-import { MemberRepository } from '../db/repositories/member-repository';
+import { getLeaseEngine } from '../presence/instance';
 
 interface ConnectedClient {
   ws: WebSocket;
@@ -27,16 +24,11 @@ interface SignalingMessagePayload {
 
 export class SignalingServer {
   private wss: WebSocketServer;
+  // In-memory WebSocket map for routing messages on THIS instance only.
+  // This is NOT the source of truth for presence — the DB lease is.
   private clients: Map<string, ConnectedClient> = new Map();
-  private presenceRepo: PresenceRepository;
-  private eventRepo: EventRepository;
-  private memberRepo: MemberRepository;
 
-  constructor(private database: DiscoveryDatabase, options?: { port?: number; server?: unknown }) {
-    this.presenceRepo = new PresenceRepository(database);
-    this.eventRepo = new EventRepository(database);
-    this.memberRepo = new MemberRepository(database);
-
+  constructor(options?: { port?: number; server?: unknown }) {
     if (options?.server) {
       this.wss = new WebSocketServer({ noServer: true });
     } else {
@@ -119,23 +111,31 @@ export class SignalingServer {
   private handleHeartbeat(client: ConnectedClient, message: SignalingMessagePayload): void {
     if (message.networkId) {
       client.networkIds.add(message.networkId);
-      this.presenceRepo.updatePresence({
-        networkId: message.networkId,
-        nodeId: client.nodeId,
-        online: true,
-      });
+      // Delegate to DB-backed LeaseEngine
+      getLeaseEngine().processHeartbeat(message.networkId, client.nodeId)
+        .then(result => {
+          client.ws.send(JSON.stringify({
+            type: 'heartbeat_ack',
+            timestamp: Date.now(),
+            leaseExpiresAt: result.leaseExpiresAt,
+            instanceId: result.instanceId,
+          }));
+        })
+        .catch(() => {
+          // Best-effort: send ack even if DB write fails
+          client.ws.send(JSON.stringify({ type: 'heartbeat_ack', timestamp: Date.now() }));
+        });
+    } else {
+      client.ws.send(JSON.stringify({ type: 'heartbeat_ack', timestamp: Date.now() }));
     }
-    client.ws.send(JSON.stringify({ type: 'heartbeat_ack', timestamp: Date.now() }));
   }
 
   private handleJoinNetwork(client: ConnectedClient, message: SignalingMessagePayload): void {
     if (message.networkId) {
       client.networkIds.add(message.networkId);
-      this.presenceRepo.updatePresence({
-        networkId: message.networkId,
-        nodeId: client.nodeId,
-        online: true,
-      });
+      // Register presence via LeaseEngine
+      getLeaseEngine().processHeartbeat(message.networkId, client.nodeId)
+        .catch(() => { /* best-effort */ });
       this.broadcastToNetwork(message.networkId, {
         type: 'presence_update',
         networkId: message.networkId,
@@ -148,7 +148,8 @@ export class SignalingServer {
   private handleLeaveNetwork(client: ConnectedClient, message: SignalingMessagePayload): void {
     if (message.networkId) {
       client.networkIds.delete(message.networkId);
-      this.presenceRepo.setOffline(message.networkId, client.nodeId);
+      // Do NOT mark offline in DB — let the lease expire naturally.
+      // The node may be connected to another instance.
       this.broadcastToNetwork(message.networkId, {
         type: 'presence_update',
         networkId: message.networkId,
@@ -167,12 +168,18 @@ export class SignalingServer {
           fromNodeId: client.nodeId,
         }));
       }
+      // If target isn't connected to this instance, the message is dropped.
+      // In a future enhancement, instances could communicate via a shared bus.
     }
   }
 
   private handleDisconnect(client: ConnectedClient): void {
+    // Do NOT immediately mark offline in the DB — let the lease expire naturally.
+    // This is the correct behavior for multi-instance: a node might be connected
+    // to a different instance and still heartbeating there.
+    //
+    // Broadcast disconnect to locally-connected peers for immediate UI feedback.
     for (const networkId of client.networkIds) {
-      this.presenceRepo.setOffline(networkId, client.nodeId);
       this.broadcastToNetwork(networkId, {
         type: 'presence_update',
         networkId,

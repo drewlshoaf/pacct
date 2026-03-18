@@ -1,4 +1,4 @@
-import type { DiscoveryDatabase } from '../database';
+import { Pool } from 'pg';
 
 export interface NetworkRow {
   id: string;
@@ -8,8 +8,9 @@ export interface NetworkRow {
   created_at: number;
   activated_at: number | null;
   dissolved_at: number | null;
+  updated_at: number | null;
   visibility_mode: string;
-  visibility_config: string | null;
+  visibility_config: Record<string, string> | null;
   min_active_members: number;
   pre_activation_timeout_ms: number | null;
   post_activation_inactivity_timeout_ms: number | null;
@@ -26,64 +27,83 @@ export interface CreateNetworkParams {
   postActivationInactivityTimeoutMs?: number;
 }
 
+function toNetworkRow(row: any): NetworkRow {
+  return {
+    ...row,
+    created_at: Number(row.created_at),
+    activated_at: row.activated_at != null ? Number(row.activated_at) : null,
+    dissolved_at: row.dissolved_at != null ? Number(row.dissolved_at) : null,
+    updated_at: row.updated_at != null ? Number(row.updated_at) : null,
+    min_active_members: Number(row.min_active_members),
+    pre_activation_timeout_ms: row.pre_activation_timeout_ms != null ? Number(row.pre_activation_timeout_ms) : null,
+    post_activation_inactivity_timeout_ms: row.post_activation_inactivity_timeout_ms != null ? Number(row.post_activation_inactivity_timeout_ms) : null,
+  };
+}
+
 export class NetworkRepository {
-  constructor(private database: DiscoveryDatabase) {}
+  constructor(private pool: Pool) {}
 
-  createNetwork(params: CreateNetworkParams): NetworkRow {
+  async createNetwork(params: CreateNetworkParams): Promise<NetworkRow> {
     const now = Date.now();
-    const stmt = this.database.db.prepare(`
-      INSERT INTO networks (id, alias, status, creator_node_id, created_at, visibility_mode, visibility_config, min_active_members, pre_activation_timeout_ms, post_activation_inactivity_timeout_ms)
-      VALUES (?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?)
-    `);
-    stmt.run(
-      params.id,
-      params.alias,
-      params.creatorNodeId,
-      now,
-      params.visibilityMode ?? 'none',
-      params.visibilityConfig ? JSON.stringify(params.visibilityConfig) : null,
-      params.minActiveMembers ?? 3,
-      params.preActivationTimeoutMs ?? null,
-      params.postActivationInactivityTimeoutMs ?? null,
+    await this.pool.query(
+      `INSERT INTO networks (id, alias, status, creator_node_id, created_at, updated_at, visibility_mode, visibility_config, min_active_members, pre_activation_timeout_ms, post_activation_inactivity_timeout_ms)
+       VALUES ($1, $2, 'draft', $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        params.id,
+        params.alias,
+        params.creatorNodeId,
+        now,
+        now,
+        params.visibilityMode ?? 'none',
+        params.visibilityConfig ? JSON.stringify(params.visibilityConfig) : null,
+        params.minActiveMembers ?? 3,
+        params.preActivationTimeoutMs ?? null,
+        params.postActivationInactivityTimeoutMs ?? null,
+      ],
     );
-    return this.getNetwork(params.id)!;
+    return (await this.getNetwork(params.id))!;
   }
 
-  getNetwork(id: string): NetworkRow | undefined {
-    const stmt = this.database.db.prepare('SELECT * FROM networks WHERE id = ?');
-    return stmt.get(id) as NetworkRow | undefined;
+  async getNetwork(id: string): Promise<NetworkRow | undefined> {
+    const result = await this.pool.query('SELECT * FROM networks WHERE id = $1', [id]);
+    return result.rows[0] ? toNetworkRow(result.rows[0]) : undefined;
   }
 
-  listNetworks(statusFilter?: string): NetworkRow[] {
+  async listNetworks(statusFilter?: string): Promise<NetworkRow[]> {
     if (statusFilter) {
-      const stmt = this.database.db.prepare('SELECT * FROM networks WHERE status = ? ORDER BY created_at DESC');
-      return stmt.all(statusFilter) as NetworkRow[];
+      const result = await this.pool.query(
+        'SELECT * FROM networks WHERE status = $1 ORDER BY created_at DESC',
+        [statusFilter],
+      );
+      return result.rows.map(toNetworkRow);
     }
-    const stmt = this.database.db.prepare('SELECT * FROM networks ORDER BY created_at DESC');
-    return stmt.all() as NetworkRow[];
+    const result = await this.pool.query('SELECT * FROM networks ORDER BY created_at DESC');
+    return result.rows.map(toNetworkRow);
   }
 
-  updateNetworkStatus(id: string, status: string): NetworkRow | undefined {
+  async updateNetworkStatus(id: string, status: string): Promise<NetworkRow | undefined> {
     const now = Date.now();
-    let extra = '';
     if (status === 'active') {
-      extra = ', activated_at = ?';
+      await this.pool.query(
+        'UPDATE networks SET status = $1, activated_at = $2, updated_at = $3 WHERE id = $4',
+        [status, now, now, id],
+      );
     } else if (status === 'dissolved') {
-      extra = ', dissolved_at = ?';
-    }
-    if (extra) {
-      const stmt = this.database.db.prepare(`UPDATE networks SET status = ?${extra} WHERE id = ?`);
-      stmt.run(status, now, id);
+      await this.pool.query(
+        'UPDATE networks SET status = $1, dissolved_at = $2, updated_at = $3 WHERE id = $4',
+        [status, now, now, id],
+      );
     } else {
-      const stmt = this.database.db.prepare('UPDATE networks SET status = ? WHERE id = ?');
-      stmt.run(status, id);
+      await this.pool.query(
+        'UPDATE networks SET status = $1, updated_at = $2 WHERE id = $3',
+        [status, now, id],
+      );
     }
     return this.getNetwork(id);
   }
 
-  deleteNetwork(id: string): boolean {
-    const stmt = this.database.db.prepare('DELETE FROM networks WHERE id = ?');
-    const result = stmt.run(id);
-    return result.changes > 0;
+  async deleteNetwork(id: string): Promise<boolean> {
+    const result = await this.pool.query('DELETE FROM networks WHERE id = $1', [id]);
+    return (result.rowCount ?? 0) > 0;
   }
 }

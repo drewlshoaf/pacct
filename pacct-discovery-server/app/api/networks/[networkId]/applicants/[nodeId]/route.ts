@@ -8,12 +8,12 @@ export async function GET(
 ) {
   try {
     const { networkId, nodeId } = await params;
-    const network = getNetworkRepo().getNetwork(networkId);
+    const network = await getNetworkRepo().getNetwork(networkId);
     if (!network) {
       return NextResponse.json({ error: 'Network not found' }, { status: 404 });
     }
 
-    const applicant = getApplicantRepo().getApplicant(networkId, nodeId);
+    const applicant = await getApplicantRepo().getApplicant(networkId, nodeId);
     if (!applicant) {
       return NextResponse.json({ error: 'Applicant not found' }, { status: 404 });
     }
@@ -36,19 +36,19 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid input', details: parsed.error.issues }, { status: 400 });
     }
 
-    const network = getNetworkRepo().getNetwork(networkId);
+    const network = await getNetworkRepo().getNetwork(networkId);
     if (!network) {
       return NextResponse.json({ error: 'Network not found' }, { status: 404 });
     }
 
-    const existing = getApplicantRepo().getApplicant(networkId, nodeId);
+    const existing = await getApplicantRepo().getApplicant(networkId, nodeId);
     if (!existing) {
       return NextResponse.json({ error: 'Applicant not found' }, { status: 404 });
     }
 
-    const applicant = getApplicantRepo().updateApplicantStatus(networkId, nodeId, parsed.data.status);
+    const applicant = await getApplicantRepo().updateApplicantStatus(networkId, nodeId, parsed.data.status);
 
-    getEventRepo().logEvent({
+    await getEventRepo().logEvent({
       networkId,
       eventType: `applicant_status_changed`,
       nodeId,

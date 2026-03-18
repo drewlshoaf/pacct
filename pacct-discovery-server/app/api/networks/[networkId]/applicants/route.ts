@@ -8,12 +8,12 @@ export async function GET(
 ) {
   try {
     const { networkId } = await params;
-    const network = getNetworkRepo().getNetwork(networkId);
+    const network = await getNetworkRepo().getNetwork(networkId);
     if (!network) {
       return NextResponse.json({ error: 'Network not found' }, { status: 404 });
     }
 
-    const applicants = getApplicantRepo().getApplicants(networkId);
+    const applicants = await getApplicantRepo().getApplicants(networkId);
     return NextResponse.json({ applicants });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to list applicants' }, { status: 500 });
@@ -32,22 +32,22 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid input', details: parsed.error.issues }, { status: 400 });
     }
 
-    const network = getNetworkRepo().getNetwork(networkId);
+    const network = await getNetworkRepo().getNetwork(networkId);
     if (!network) {
       return NextResponse.json({ error: 'Network not found' }, { status: 404 });
     }
 
-    const existing = getApplicantRepo().getApplicant(networkId, parsed.data.nodeId);
+    const existing = await getApplicantRepo().getApplicant(networkId, parsed.data.nodeId);
     if (existing) {
       return NextResponse.json({ error: 'Application already exists' }, { status: 409 });
     }
 
-    const applicant = getApplicantRepo().createApplicant({
+    const applicant = await getApplicantRepo().createApplicant({
       networkId,
       nodeId: parsed.data.nodeId,
     });
 
-    getEventRepo().logEvent({
+    await getEventRepo().logEvent({
       networkId,
       eventType: 'applicant_submitted',
       nodeId: parsed.data.nodeId,

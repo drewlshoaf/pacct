@@ -78,3 +78,25 @@ export {
   type RunAbortedEvent,
   type PacctEvent,
 } from './events';
+
+// Presence
+export {
+  NodeAvailability,
+  type PresenceLease,
+  type NodePresenceState,
+  type HeartbeatPayload,
+  type HeartbeatAck,
+} from './presence';
+
+// Health
+export {
+  DiscoveryHealthStatus,
+  type DiscoveryInstanceHealth,
+  type DiscoveryServiceHealth,
+} from './health';
+
+// Presence events
+export {
+  PresenceEventType,
+  type PresenceChangeEvent,
+} from './events/presence-events';

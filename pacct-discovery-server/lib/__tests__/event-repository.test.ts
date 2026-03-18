@@ -1,95 +1,165 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { DiscoveryDatabase } from '../db/database';
-import { NetworkRepository } from '../db/repositories/network-repository';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { createMockPool } from './mock-pool';
 import { EventRepository } from '../db/repositories/event-repository';
 
 describe('EventRepository', () => {
-  let db: DiscoveryDatabase;
   let repo: EventRepository;
+  let mockQuery: ReturnType<typeof createMockPool>['mockQuery'];
 
   beforeEach(() => {
-    db = new DiscoveryDatabase(':memory:');
-    new NetworkRepository(db).createNetwork({ id: 'net-1', alias: 'Test', creatorNodeId: 'node-1' });
-    repo = new EventRepository(db);
+    const mock = createMockPool();
+    repo = new EventRepository(mock.pool);
+    mockQuery = mock.mockQuery;
   });
 
-  afterEach(() => {
-    db.close();
-  });
+  describe('logEvent', () => {
+    it('should generate correct INSERT with RETURNING', async () => {
+      mockQuery.mockResolvedValueOnce({
+        rows: [{ id: 1, network_id: 'net-1', event_type: 'network_created', node_id: 'node-1', payload: { alias: 'Test' }, timestamp: 1000 }],
+        rowCount: 1,
+      });
 
-  it('should log an event', () => {
-    const event = repo.logEvent({
-      networkId: 'net-1',
-      eventType: 'network_created',
-      nodeId: 'node-1',
-      payload: { alias: 'Test' },
+      const result = await repo.logEvent({
+        networkId: 'net-1',
+        eventType: 'network_created',
+        nodeId: 'node-1',
+        payload: { alias: 'Test' },
+      });
+
+      const insertCall = mockQuery.mock.calls[0];
+      expect(insertCall[0]).toContain('INSERT INTO event_log');
+      expect(insertCall[0]).toContain('RETURNING *');
+      expect(insertCall[1][0]).toBe('net-1');
+      expect(insertCall[1][1]).toBe('network_created');
+      expect(insertCall[1][2]).toBe('node-1');
+      expect(insertCall[1][3]).toBe(JSON.stringify({ alias: 'Test' }));
+      expect(result.id).toBe(1);
+      expect(result.event_type).toBe('network_created');
     });
-    expect(event.id).toBeGreaterThan(0);
-    expect(event.event_type).toBe('network_created');
-    expect(event.node_id).toBe('node-1');
-    expect(JSON.parse(event.payload!)).toEqual({ alias: 'Test' });
-    expect(event.timestamp).toBeGreaterThan(0);
-  });
 
-  it('should log an event without optional fields', () => {
-    const event = repo.logEvent({
-      networkId: 'net-1',
-      eventType: 'status_changed',
+    it('should default optional fields to null', async () => {
+      mockQuery.mockResolvedValueOnce({
+        rows: [{ id: 2, network_id: 'net-1', event_type: 'status_changed', node_id: null, payload: null, timestamp: 1000 }],
+        rowCount: 1,
+      });
+
+      const result = await repo.logEvent({
+        networkId: 'net-1',
+        eventType: 'status_changed',
+      });
+
+      expect(mockQuery.mock.calls[0][1][2]).toBeNull(); // node_id
+      expect(mockQuery.mock.calls[0][1][3]).toBeNull(); // payload
+      expect(result.node_id).toBeNull();
+      expect(result.payload).toBeNull();
     });
-    expect(event.node_id).toBeNull();
-    expect(event.payload).toBeNull();
   });
 
-  it('should get an event by id', () => {
-    const created = repo.logEvent({ networkId: 'net-1', eventType: 'test' });
-    const event = repo.getEvent(created.id);
-    expect(event).toBeDefined();
-    expect(event!.event_type).toBe('test');
+  describe('getEvents', () => {
+    it('should generate SELECT with limit and offset', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+      await repo.getEvents('net-1', 10, 5);
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        'SELECT * FROM event_log WHERE network_id = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3',
+        ['net-1', 10, 5],
+      );
+    });
+
+    it('should use default limit and offset', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+      await repo.getEvents('net-1');
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        'SELECT * FROM event_log WHERE network_id = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3',
+        ['net-1', 50, 0],
+      );
+    });
   });
 
-  it('should get events with pagination', () => {
-    for (let i = 0; i < 10; i++) {
-      repo.logEvent({ networkId: 'net-1', eventType: `event_${i}` });
-    }
+  describe('countEvents / getEventCount', () => {
+    it('should generate correct COUNT query', async () => {
+      mockQuery.mockResolvedValueOnce({
+        rows: [{ count: '5' }],
+        rowCount: 1,
+      });
 
-    const page1 = repo.getEvents('net-1', 3, 0);
-    expect(page1).toHaveLength(3);
+      const result = await repo.countEvents('net-1');
 
-    const page2 = repo.getEvents('net-1', 3, 3);
-    expect(page2).toHaveLength(3);
+      expect(mockQuery).toHaveBeenCalledWith(
+        'SELECT COUNT(*) as count FROM event_log WHERE network_id = $1',
+        ['net-1'],
+      );
+      expect(result).toBe(5);
+    });
 
-    const all = repo.getEvents('net-1', 50, 0);
-    expect(all).toHaveLength(10);
+    it('getEventCount delegates to countEvents', async () => {
+      mockQuery.mockResolvedValueOnce({
+        rows: [{ count: '3' }],
+        rowCount: 1,
+      });
+
+      const result = await repo.getEventCount('net-1');
+      expect(result).toBe(3);
+    });
   });
 
-  it('should get all network events', () => {
-    repo.logEvent({ networkId: 'net-1', eventType: 'event_1' });
-    repo.logEvent({ networkId: 'net-1', eventType: 'event_2' });
+  describe('getRecentEvents', () => {
+    it('should delegate to getEvents with limit', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
-    const events = repo.getNetworkEvents('net-1');
-    expect(events).toHaveLength(2);
+      await repo.getRecentEvents('net-1', 5);
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        'SELECT * FROM event_log WHERE network_id = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3',
+        ['net-1', 5, 0],
+      );
+    });
   });
 
-  it('should get events by type', () => {
-    repo.logEvent({ networkId: 'net-1', eventType: 'member_joined' });
-    repo.logEvent({ networkId: 'net-1', eventType: 'member_left' });
-    repo.logEvent({ networkId: 'net-1', eventType: 'member_joined' });
+  describe('getNetworkEvents', () => {
+    it('should generate SELECT without limit', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
-    const joined = repo.getEventsByType('net-1', 'member_joined');
-    expect(joined).toHaveLength(2);
+      await repo.getNetworkEvents('net-1');
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        'SELECT * FROM event_log WHERE network_id = $1 ORDER BY timestamp DESC',
+        ['net-1'],
+      );
+    });
   });
 
-  it('should count events', () => {
-    repo.logEvent({ networkId: 'net-1', eventType: 'event_1' });
-    repo.logEvent({ networkId: 'net-1', eventType: 'event_2' });
-    repo.logEvent({ networkId: 'net-1', eventType: 'event_3' });
+  describe('getEventsByType', () => {
+    it('should filter by event type', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
-    const count = repo.countEvents('net-1');
-    expect(count).toBe(3);
+      await repo.getEventsByType('net-1', 'member_joined');
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        'SELECT * FROM event_log WHERE network_id = $1 AND event_type = $2 ORDER BY timestamp DESC',
+        ['net-1', 'member_joined'],
+      );
+    });
   });
 
-  it('should return 0 count for network with no events', () => {
-    const count = repo.countEvents('net-1');
-    expect(count).toBe(0);
+  describe('getEvent', () => {
+    it('should generate correct SELECT by id', async () => {
+      mockQuery.mockResolvedValueOnce({
+        rows: [{ id: 1, network_id: 'net-1', event_type: 'test', node_id: null, payload: null, timestamp: 1000 }],
+        rowCount: 1,
+      });
+
+      const result = await repo.getEvent(1);
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        'SELECT * FROM event_log WHERE id = $1',
+        [1],
+      );
+      expect(result).toBeDefined();
+      expect(result!.id).toBe(1);
+    });
   });
 });

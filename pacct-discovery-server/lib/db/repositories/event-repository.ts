@@ -1,11 +1,11 @@
-import type { DiscoveryDatabase } from '../database';
+import { Pool } from 'pg';
 
 export interface EventRow {
   id: number;
   network_id: string;
   event_type: string;
   node_id: string | null;
-  payload: string | null;
+  payload: Record<string, unknown> | null;
   timestamp: number;
 }
 
@@ -16,52 +16,78 @@ export interface LogEventParams {
   payload?: Record<string, unknown>;
 }
 
+function toEventRow(row: any): EventRow {
+  return {
+    ...row,
+    id: Number(row.id),
+    timestamp: Number(row.timestamp),
+    // JSONB comes back as object already from pg driver
+    payload: row.payload ?? null,
+  };
+}
+
 export class EventRepository {
-  constructor(private database: DiscoveryDatabase) {}
+  constructor(private pool: Pool) {}
 
-  logEvent(params: LogEventParams): EventRow {
+  async logEvent(params: LogEventParams): Promise<EventRow> {
     const now = Date.now();
-    const stmt = this.database.db.prepare(`
-      INSERT INTO event_log (network_id, event_type, node_id, payload, timestamp)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-    const result = stmt.run(
-      params.networkId,
-      params.eventType,
-      params.nodeId ?? null,
-      params.payload ? JSON.stringify(params.payload) : null,
-      now,
+    const result = await this.pool.query(
+      `INSERT INTO event_log (network_id, event_type, node_id, payload, timestamp)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [
+        params.networkId,
+        params.eventType,
+        params.nodeId ?? null,
+        params.payload ? JSON.stringify(params.payload) : null,
+        now,
+      ],
     );
-    return this.getEvent(Number(result.lastInsertRowid))!;
+    return toEventRow(result.rows[0]);
   }
 
-  getEvent(id: number): EventRow | undefined {
-    const stmt = this.database.db.prepare('SELECT * FROM event_log WHERE id = ?');
-    return stmt.get(id) as EventRow | undefined;
+  async getEvent(id: number): Promise<EventRow | undefined> {
+    const result = await this.pool.query('SELECT * FROM event_log WHERE id = $1', [id]);
+    return result.rows[0] ? toEventRow(result.rows[0]) : undefined;
   }
 
-  getEvents(networkId: string, limit: number = 50, offset: number = 0): EventRow[] {
-    const stmt = this.database.db.prepare(
-      'SELECT * FROM event_log WHERE network_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?',
+  async getEvents(networkId: string, limit: number = 50, offset: number = 0): Promise<EventRow[]> {
+    const result = await this.pool.query(
+      'SELECT * FROM event_log WHERE network_id = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3',
+      [networkId, limit, offset],
     );
-    return stmt.all(networkId, limit, offset) as EventRow[];
+    return result.rows.map(toEventRow);
   }
 
-  getNetworkEvents(networkId: string): EventRow[] {
-    const stmt = this.database.db.prepare('SELECT * FROM event_log WHERE network_id = ? ORDER BY timestamp DESC');
-    return stmt.all(networkId) as EventRow[];
-  }
-
-  getEventsByType(networkId: string, eventType: string): EventRow[] {
-    const stmt = this.database.db.prepare(
-      'SELECT * FROM event_log WHERE network_id = ? AND event_type = ? ORDER BY timestamp DESC',
+  async getNetworkEvents(networkId: string): Promise<EventRow[]> {
+    const result = await this.pool.query(
+      'SELECT * FROM event_log WHERE network_id = $1 ORDER BY timestamp DESC',
+      [networkId],
     );
-    return stmt.all(networkId, eventType) as EventRow[];
+    return result.rows.map(toEventRow);
   }
 
-  countEvents(networkId: string): number {
-    const stmt = this.database.db.prepare('SELECT COUNT(*) as count FROM event_log WHERE network_id = ?');
-    const result = stmt.get(networkId) as { count: number };
-    return result.count;
+  async getEventsByType(networkId: string, eventType: string): Promise<EventRow[]> {
+    const result = await this.pool.query(
+      'SELECT * FROM event_log WHERE network_id = $1 AND event_type = $2 ORDER BY timestamp DESC',
+      [networkId, eventType],
+    );
+    return result.rows.map(toEventRow);
+  }
+
+  async countEvents(networkId: string): Promise<number> {
+    const result = await this.pool.query(
+      'SELECT COUNT(*) as count FROM event_log WHERE network_id = $1',
+      [networkId],
+    );
+    return Number(result.rows[0].count);
+  }
+
+  async getRecentEvents(networkId: string, limit: number): Promise<EventRow[]> {
+    return this.getEvents(networkId, limit, 0);
+  }
+
+  async getEventCount(networkId: string): Promise<number> {
+    return this.countEvents(networkId);
   }
 }

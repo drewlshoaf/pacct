@@ -180,8 +180,22 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
       return { ...state, currentStep: action.step };
     case 'UPDATE_BASICS':
       return { ...state, basics: { ...state.basics, ...action.data } };
-    case 'UPDATE_SCHEMA':
-      return { ...state, schema: { ...state.schema, ...action.data } };
+    case 'UPDATE_SCHEMA': {
+      const newSchema = { ...state.schema, ...action.data };
+      // Sync computation: prune featureFields and targetField that no longer exist in schema
+      const fieldNames = new Set(newSchema.fields.map(f => f.name));
+      const prunedFeatures = state.computation.featureFields.filter(f => fieldNames.has(f));
+      const prunedTarget = fieldNames.has(state.computation.targetField) ? state.computation.targetField : '';
+      return {
+        ...state,
+        schema: newSchema,
+        computation: {
+          ...state.computation,
+          featureFields: prunedFeatures,
+          targetField: prunedTarget,
+        },
+      };
+    }
     case 'UPDATE_COMPUTATION':
       return { ...state, computation: { ...state.computation, ...action.data } };
     case 'UPDATE_GOVERNANCE':
@@ -192,8 +206,18 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
       return { ...state, acknowledged: action.value };
     case 'SET_STEP_VALID':
       return { ...state, stepValidation: { ...state.stepValidation, [action.step]: action.valid } };
-    case 'LOAD_TEMPLATE':
-      return { ...defaultState(), ...action.state };
+    case 'LOAD_TEMPLATE': {
+      const base = defaultState();
+      return {
+        ...state,
+        basics: { ...state.basics, ...(action.state.basics ?? {}) },
+        schema: { ...base.schema, ...(action.state.schema ?? {}) },
+        computation: { ...base.computation, ...(action.state.computation ?? {}) },
+        governance: { ...base.governance, ...(action.state.governance ?? {}) },
+        economic: { ...base.economic, ...(action.state.economic ?? {}) },
+        stepValidation: {},
+      };
+    }
     case 'RESET':
       return defaultState();
     default:

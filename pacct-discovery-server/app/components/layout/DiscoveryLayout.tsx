@@ -32,9 +32,15 @@ export function DiscoveryLayout({ children }: { children: React.ReactNode }) {
             <span>PACCT <span style={{ color: 'var(--pacct-text-muted)' }} className="font-normal">Discovery</span></span>
           </a>
           <div className="flex items-center gap-3">
-            <nav>
+            <nav className="flex items-center gap-1">
               <a href="/" className="text-sm px-3 py-1.5 rounded-lg transition-colors" style={{ color: 'var(--pacct-text-secondary)' }}>
                 Dashboard
+              </a>
+              <a href="/health" className="text-sm px-3 py-1.5 rounded-lg transition-colors" style={{ color: 'var(--pacct-text-secondary)' }}>
+                Health
+              </a>
+              <a href="/presence" className="text-sm px-3 py-1.5 rounded-lg transition-colors" style={{ color: 'var(--pacct-text-secondary)' }}>
+                Presence
               </a>
             </nav>
             <button

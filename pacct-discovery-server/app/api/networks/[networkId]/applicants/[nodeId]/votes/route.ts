@@ -8,8 +8,8 @@ export async function GET(
 ) {
   try {
     const { networkId, nodeId } = await params;
-    const votes = getVoteRepo().getVotes(networkId, nodeId);
-    const counts = getVoteRepo().getVoteCount(networkId, nodeId);
+    const votes = await getVoteRepo().getVotes(networkId, nodeId);
+    const counts = await getVoteRepo().getVoteCount(networkId, nodeId);
     return NextResponse.json({ votes, counts });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to get votes' }, { status: 500 });
@@ -28,17 +28,17 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid input', details: parsed.error.issues }, { status: 400 });
     }
 
-    const network = getNetworkRepo().getNetwork(networkId);
+    const network = await getNetworkRepo().getNetwork(networkId);
     if (!network) {
       return NextResponse.json({ error: 'Network not found' }, { status: 404 });
     }
 
-    const applicant = getApplicantRepo().getApplicant(networkId, nodeId);
+    const applicant = await getApplicantRepo().getApplicant(networkId, nodeId);
     if (!applicant) {
       return NextResponse.json({ error: 'Applicant not found' }, { status: 404 });
     }
 
-    const vote = getVoteRepo().castVote({
+    const vote = await getVoteRepo().castVote({
       networkId,
       applicantNodeId: nodeId,
       voterNodeId: parsed.data.voterNodeId,
@@ -46,7 +46,7 @@ export async function POST(
       signature: parsed.data.signature,
     });
 
-    getEventRepo().logEvent({
+    await getEventRepo().logEvent({
       networkId,
       eventType: 'vote_cast',
       nodeId: parsed.data.voterNodeId,

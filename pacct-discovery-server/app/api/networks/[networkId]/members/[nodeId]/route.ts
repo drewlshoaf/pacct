@@ -14,19 +14,19 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid input', details: parsed.error.issues }, { status: 400 });
     }
 
-    const network = getNetworkRepo().getNetwork(networkId);
+    const network = await getNetworkRepo().getNetwork(networkId);
     if (!network) {
       return NextResponse.json({ error: 'Network not found' }, { status: 404 });
     }
 
-    const existing = getMemberRepo().getMember(networkId, nodeId);
+    const existing = await getMemberRepo().getMember(networkId, nodeId);
     if (!existing) {
       return NextResponse.json({ error: 'Member not found' }, { status: 404 });
     }
 
-    const member = getMemberRepo().updateMemberStatus(networkId, nodeId, parsed.data.status);
+    const member = await getMemberRepo().updateMemberStatus(networkId, nodeId, parsed.data.status);
 
-    getEventRepo().logEvent({
+    await getEventRepo().logEvent({
       networkId,
       eventType: `member_status_changed`,
       nodeId,
